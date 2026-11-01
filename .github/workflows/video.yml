@@ -1,0 +1,33 @@
+name: Make video
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Video topic"
+        required: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+          pip install requests Pillow
+          pip install piper-tts==1.2.0 || echo "piper not installed; will use espeak-ng"
+      - name: Build video
+        run: python make_video.py
+        env:
+          TOPIC: ${{ github.event.inputs.topic }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: output/
+          retention-days: 2
