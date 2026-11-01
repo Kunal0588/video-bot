@@ -128,4 +128,66 @@ def render_frame(bg, text, out, size=78, width=30):
         base = Image.new("RGB", (W, H), (18, 28, 56))
     base = ImageEnhance.Brightness(base).enhance(0.6)
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    d = ImageDra
+    d = ImageDraw.Draw(ov)
+    f = font(size)
+    lines = textwrap.wrap(text, width=width)[:4]
+    lh = int(size * 1.3)
+    box = lh * len(lines) + 80
+    top = (H - box) // 2
+    d.rectangle([(120, top), (W - 120, top + box)], fill=(0, 0, 0, 150))
+    y = top + 40
+    for ln in lines:
+        d.text(((W - d.textlength(ln, font=f)) / 2, y), ln, font=f, fill="white")
+        y += lh
+    Image.alpha_composite(base.convert("RGBA"), ov).convert("RGB").save(out)
+    return out
+
+
+# ---------- 4. assemble ----------
+def make_segment(png, wav, dur, out):
+    frames = int((dur + 0.5) * 30) + 1
+    vf = (f"scale=2400:-1,zoompan=z='min(zoom+0.0006,1.12)':x='iw/2-(iw/zoom/2)':"
+          f"y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps=30,format=yuv420p")
+    run(["ffmpeg", "-y", "-i", str(png), "-i", str(wav), "-vf", vf,
+         "-af", "apad=pad_dur=0.5", "-t", f"{dur + 0.5:.2f}",
+         "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+         "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2", str(out)])
+
+
+def concat(segs, out):
+    lst = Path("work") / "list.txt"
+    lst.write_text("".join(f"file '{Path(s).resolve()}'\n" for s in segs))
+    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
+         "-c", "copy", "-movflags", "+faststart", str(out)])
+
+
+def main():
+    topic = os.environ["TOPIC"]
+    OUT.mkdir(exist_ok=True)
+    work = Path("work"); work.mkdir(exist_ok=True)
+    print("1/4 Writing script")
+    data = write_script(topic)
+    (OUT / "script.json").write_text(json.dumps(data, indent=2))
+    voice = load_piper()
+    segs = []
+    for i, sc in enumerate(data["scenes"]):
+        print(f"2/4 Scene {i + 1}/{len(data['scenes'])}")
+        wav = work / f"s{i}.wav"
+        speak(sc["narration"], wav, voice)
+        bg = fetch_image(sc.get("image_query", topic), work / f"s{i}.jpg")
+        png = render_frame(bg, sc["on_screen_text"], work / f"s{i}.png")
+        seg = work / f"s{i}.mp4"
+        make_segment(png, wav, wav_seconds(wav), seg)
+        segs.append(seg)
+    print("3/4 Joining scenes")
+    concat(segs, OUT / "video.mp4")
+    first_bg = work / "s0.jpg"
+    render_frame(first_bg if first_bg.exists() else None, data["title"],
+                 OUT / "thumbnail.png", size=110, width=20)
+    (OUT / "meta.txt").write_text(
+        f"TITLE:\n{data['title']}\n\nDESCRIPTION:\n{data['description']}\n\nTAGS:\n{', '.join(data.get('tags', []))}\n")
+    print("4/4 Done")
+
+
+if __name__ == "__main__":
+    main()
