@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 W, H = 1920, 1080
 OUT = Path("output")
 MINUTES = int(os.getenv("VIDEO_MINUTES", "4"))
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 VOICE = "en_US-lessac-medium"
 VOICE_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/"
 FONTS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
