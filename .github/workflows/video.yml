@@ -5,6 +5,8 @@ on:
       topic:
         description: "Video topic"
         required: true
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,3 +33,16 @@ jobs:
           name: video
           path: output/
           retention-days: 2
+      - name: Publish to published branch
+        run: |
+          TITLE=$(python -c "import json;print(json.load(open('output/script.json'))['title'][:95])")
+          mkdir -p /tmp/pub
+          cp output/video.mp4 output/thumbnail.png output/meta.txt /tmp/pub/
+          git config user.name "video-bot"
+          git config user.email "video-bot@users.noreply.github.com"
+          git checkout --orphan published
+          git rm -rf . > /dev/null 2>&1 || true
+          cp /tmp/pub/* .
+          git add video.mp4 thumbnail.png meta.txt
+          git commit -m "$TITLE"
+          git push --force origin published
